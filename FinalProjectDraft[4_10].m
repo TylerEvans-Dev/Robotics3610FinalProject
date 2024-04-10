@@ -35,35 +35,64 @@ fprintf('one: %.2f, two: %.2f, three: %.2f four: %.2f\n', val.one, val.two, val.
 %  Using readings from reflectance array to change direction of your DC motor
 %  based on the the amount of error.
 
-%LINE DETECTION
-IRrange = linspace(-600,600,25);
+motor1BaseSpeed, motor2BaseSpeed = 9; % set to minimum duty cycle
+maxDuty = 15; %maximum Duty cycle
+
 tic
+
+nb.setMotor(1, 10);
+nb.setMotor(2, 10);
+pause(0.03);
+
+%PID Params
+kp=0.000003;
+ki=0; %leave at zero for testing
+kd=0; %leave at zero for testing
+prevError = 0;
+
 while(toc < 10)
-    motor1BaseSpeed, motor2BaseSpeed = 9; % set to minimum duty cycle
+   
+
     %TO-DO: Refactor PID code for real code
     val = nb.reflectanceRead();
     error = -3*val.one-2*val.two-val.three+val.four+2*val.five+3*val.six;
-    %Error should be 0 when perfectly centered on line
-    
-    %PID Params
-    kp=0;
-    ki=0; %leave at zero for testing
-    kd=0; %leave at zero for testing
+    stopCheck = -3*val.one + 3*val.six; 
+
     integral = integral + error * dt;
     derivative = (error - prevError) / dt;
     control = kp*error + ki*integral + kd*derivative;
-    RightMotorDuty = motor1BaseSpeed - control;
-    LeftMotorDuty = motor2BaseSpeed + control;
     
-    nb.setMotor(RightMotorDuty); % set right motor
-    nb.setMotor(LeftMotorDuty); %set left motor
-    
-    %if(nb.reflectanceRead == (check for full black)
-         %set motor to 0 and break from loop
-         %nb.setMotor(0); %set right motor
-         %nb.setMotor(0); %set left motor
-   
+    %Error should be 0 when perfectly centered on line
+    if(stopCheck<5 && stopCheck>-5)
+        nb.setMotor(1,0); % set right motor to 0
+        nb.setMotor(2,0); %set left motor to 0
+        fprintf('Break out of while loop');
+        break;
+    else
+        RightMotorDuty = motor1BaseSpeed - control;
+        LeftMotorDuty = motor2BaseSpeed + control;
+
+        if RightMotorDuty > maxDuty
+            RightMotorDuty = maxDuty;
+        elseif RightMotorDuty < 6
+            RightMotorDuty = 6;
+        end
+
+        if LeftMotorDuty > maxDuty
+            LeftMotorDuty = maxDuty;
+        elseif LeftMotorDuty < 6
+            LeftMotorDuty = 6;
+        end
+
+        nb.setMotor(1,RightMotorDuty); % set right motor
+        nb.setMotor(2,LeftMotorDuty); %set left motor
+    end
+   prevError = error;
 end
+
+%% Clear motors
+nb.setMotor(1, 0);
+nb.setMotor(2, 0)
 
 %% X. DISCONNECT
 %  Clears the workspace and command window, then
