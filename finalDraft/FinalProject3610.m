@@ -5,12 +5,13 @@
 %init robot
 clc
 clear all
-
 % Create an instance of the nanobot class
+%network name ECE3610k22
+%password ece3610k22
 nb = nanobot('COM49', 115200, 'wifi');
 %here is for the hand gesture functions
-r = nanobot('/dev/cu.usbmodem1101', 115200, 'serial'); %connect to MKR
-r.ledWrite(0);
+%r = nanobot('/dev/cu.usbmodem1101', 115200, 'serial'); %connect to MKR
+%r.ledWrite(0);
 
 %% Main execution loop. 
 state = 1; 
@@ -23,6 +24,9 @@ while(state == 1)
     %stop  current action and check in motion and proceeed. 
     %
     %check if wall following needed. 
+    forward();
+    pause(1);
+    stop();
     
 end
 %% Line following function 
@@ -32,7 +36,7 @@ function [outputLineState] = lineFollow()
 end
 %% Forward movment function 
 
-function [] = foward()
+function [] = forward()
     nb.setMotor(1,  10);
     nb.setMotor(2,  10);
 end
