@@ -1,0 +1,83 @@
+%% init the arduino
+r = nanobot('/dev/cu.usbmodem14101', 115200, 'wifi');
+
+%% Motion testing
+
+% move forward
+r.setMotor(1,9.8) %right motor on Arduino side
+r.setMotor(2,10) %left motor on Arduino side
+pause(0.5)
+r.setMotor(1,0)
+r.setMotor(2,0)
+pause(0.5)
+% move backward
+r.setMotor(1,-10)
+r.setMotor(2,-10)
+pause(0.5)
+r.setMotor(1,0)
+r.setMotor(2,0)
+pause(0.5)
+% turn around
+r.setMotor(1,10)
+r.setMotor(2,-10)
+pause(1.25)
+r.setMotor(1,0)
+r.setMotor(2,0)
+
+%% Wall following
+nb.initUltrasonic2('D4','D5')
+nb.init
+while(toc < 50)
+r.setMotor(1,9.8)
+r.setMotor(2,10)
+reading = nb.ultrasonicRead2();
+if (reading < 650)
+    r.setMotor(2,9.8)
+end
+end
+pause(0.5)
+r.setMotor(1,0)
+r.setMotor(2,0)
+
+%% 3. DC MOTOR TESTING BASED ON SENSOR & LINE DETECTION
+%  Using readings from reflectance array to change direction of your DC motor
+%  based on the the amount of error.
+
+%LINE DETECTION
+IRrange = linspace(-600,600,25);
+tic
+while(toc < 10)
+    motor1BaseSpeed, motor2BaseSpeed = 9; % set to minimum duty cycle
+    %TO-DO: Refactor PID code for real code
+    val = nb.reflectanceRead();
+    error = -3*val.one-2*val.two-val.three+val.four+2*val.five+3*val.six;
+    %Error should be 0 when perfectly centered on line
+    
+    %PID Params
+    kp=0; %Play around with this
+    ki=0; %leave at zero for testing
+    kd=0; %leave at zero for testing
+    integral = integral + (error * dt);
+    derivative = (error - prevError) / dt;
+    control = kp*error + ki*integral + kd*derivative;
+    RightMotorDuty = motor1BaseSpeed - control;
+    LeftMotorDuty = motor2BaseSpeed + control;
+    
+    nb.setMotor(RightMotorDuty); % set right motor
+    nb.setMotor(LeftMotorDuty); %set left motor
+    
+    %if(nb.reflectanceRead == (check for full black)
+         %set motor to 0 and break from loop
+         %nb.setMotor(0); %set right motor
+         %nb.setMotor(0); %set left motor
+   
+end
+
+%% X. DISCONNECT
+%  Clears the workspace and command window, then
+%  disconnects from the nanobot, freeing up the serial port.
+
+clc
+delete(nb);
+clear('nb');
+clear all
