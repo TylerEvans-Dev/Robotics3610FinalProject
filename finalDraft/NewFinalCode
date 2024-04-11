@@ -1,0 +1,227 @@
+%%%%%%%%%%%%%
+% ECE 3610
+% Final -- PID-Based Line Following
+%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%
+% In this lab, you will be working in teams to create a PID feedback loop
+% and use it to tune a robot to smoothly follow a black line on a white
+% background. Line following will be a core part of your final project, so
+% it's good to get some experience with it early!
+%
+% Deliverables:
+%   - Demonstrate that your robot accurately and smoothly follows a provided line
+%   without losing tracking.
+%%%%%%%%%%%%%%
+
+%% WIRING
+% This lab has lots of wiring! Be sure to check out the wiring diagram on
+% Canvas to map all of the wires where they need to go. Double check this
+% before connecting the Arduino to power.
+
+%% 1. CONNECT TO YOUR NANOBOT (SUPER SPECIAL WIFI EDITION)
+%  Remember to replace the first input argument with text corresponding to
+%  the correct serial port you found through the Arduino IDE. Note that the
+%  clc and clear all will clear your command window and all saved
+%  variables!
+
+% NOTE: This is the first time we will be connecting to our robot via
+% Wi-Fi. Make sure to change string to specify 'wifi' as the third parameter in
+% the nanobot() function. Your port should be identical to the one you've
+% been using in previous labs.
+% Make sure you're connected to the Arduino's wifi network before you
+% connect here.
+
+clc
+clear all
+nb = nanobot('COM9', 115200, 'wifi');
+
+%% RUN IF GOING TO USE CALIBRATED SENSOR VALUES - Calibrate Reflectance Minimums (white background)
+
+nb.initReflectance();
+vals = nb.reflectanceRead();
+fprintf('one: %.2f, two: %.2f, three: %.2f four: %.2f five: %.2f six: %.2f\n', vals.one, vals.two, vals.three, vals.four, vals.five, vals.six);
+minReflectance  = [85,72,60,60,60,72]; % Set me to minimum reflectance values for each sensor
+maxReflectance = [1602, 1266, 1161, 1058, 1219, 1750];
+
+calibratedVals.one = 1000 * (vals.one - minReflectance(1)) / (maxReflectance(1) - minReflectance(1))
+    calibratedVals.two = 1000 * (vals.two - minReflectance(2)) / (maxReflectance(2) - minReflectance(2))
+    calibratedVals.three = 1000 * (vals.three - minReflectance(3)) / (maxReflectance(3) - minReflectance(3))
+    calibratedVals.four = 1000 * (vals.four - minReflectance(4)) / (maxReflectance(4) - minReflectance(4))
+    calibratedVals.five = 1000 * (vals.five - minReflectance(5)) / (maxReflectance(5) - minReflectance(5))
+    calibratedVals.six = 1000 * (vals.six - minReflectance(6)) / (maxReflectance(6) - minReflectance(6))
+
+%% LINE FOLLOWING PID LOOP
+
+nb.initReflectance();
+
+% TUNING:
+% Start small (ESPECIALLY with the reflectance values, error can range from zero to several thousand!)
+% Tip: when tuning kd, it must be the opposite sign of kp to damp
+kp = 0.001;
+ki = 0.0000;
+kd = 0.0000;
+
+% kp = 0.00006;
+% ki = 0.0000;
+% kd = -0.000005;
+
+% Basic initialization
+vals = 0;
+prevError = 0;
+prevTime = 0;
+integral = 0;
+derivative = 0;
+whiteThresh = 50;
+blkThresh = 300;
+turnOffset = 0
+
+% Determine a threshold to detect when white is present on all sensors
+% whiteThresh = '?'; % Max value detected for all white
+
+% The base duty cycle "speed" you wish to travel down the line with
+% (recommended values are 9 or 10)
+% baseSpeed = 11;
+baseSpeed = 9;
+motor1BaseSpeed = baseSpeed;
+motor2BaseSpeed = baseSpeed;
+maxDuty = 15;
+
+tic
+nb.setMotor(1, 9);
+nb.setMotor(2, 9);
+pause(0.03);
+while (toc < 120)  % Adjust me if you want to stop your line following earlier, or let it run longer.
+
+    % TIME STEP
+    dt = toc - prevTime;
+    prevTime = toc;
+    
+    [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);
+
+    % Calculate P, I, and D terms
+    integral = integral + (error*dt);
+
+    derivative = (error - prevError)/dt;
+
+    % Set PID
+    control = kp*error + ki*integral + kd*derivative + turnOffset;
+
+    % STATE CHECKING - stops robot if all sensors read white (lost tracking):
+    if (calibratedVals.one < whiteThresh && ...
+            calibratedVals.two < whiteThresh && ...
+            calibratedVals.three < whiteThresh && ...
+            calibratedVals.four < whiteThresh && ...
+            calibratedVals.five < whiteThresh && ...
+            calibratedVals.six < whiteThresh)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        pause(.1)
+        if prevError > 0
+            nb.setMotor(2, -10);
+        elseif prevError < 0
+            nb.setMotor(1, -10);
+        end
+        % while abs(error)<2000
+        %     [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);;
+        % pause(.01)
+        % end
+        % while abs(error)>500
+        %     [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);;
+        % pause(.01)
+        % end
+        pause(.2);
+    elseif (calibratedVals.one > blkThresh && ...
+            calibratedVals.two > blkThresh && ...
+            calibratedVals.three > blkThresh && ...
+            calibratedVals.four > blkThresh && ...
+            calibratedVals.five > blkThresh && ...
+            calibratedVals.six > blkThresh)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        break
+    else
+        % LINE DETECTED:
+        
+        % Remember, we want to travel around a fixed speed down the line,
+        % and the control should make minor adjustments that allow the
+        % robot to stay centered on the line as it moves.
+        
+        m1Duty = motor1BaseSpeed+control+(turnOffset>0);
+        m2Duty = motor2BaseSpeed-control+(turnOffset<0);
+       
+        if m1Duty > maxDuty
+            m1Duty = maxDuty;
+        elseif m1Duty < 6
+            m1Duty = 6;
+        end
+
+        if m2Duty > maxDuty
+            m2Duty = maxDuty;
+        elseif m2Duty < 6
+            m2Duty = 6;
+        end
+        % If you're doing something with encoders to derive control, you
+        % may want to make sure the duty cycles of the motors don't exceed
+        % the maximum speed so that your counts stay accurate.
+
+        nb.setMotor(1, m1Duty);
+        nb.setMotor(2, m2Duty);
+        turnOffset = 0;
+        prevError = error;
+    end
+
+    
+ end
+nb.setMotor(1, 0);
+nb.setMotor(2, 0);
+%% EMERGENCY MOTOR SHUT OFF
+% If this doesn't work, turn off the power switch on your motor carrier
+% board.
+
+% Clear motors
+nb.setMotor(1, 0);
+nb.setMotor(2, 0);
+nb.initReflectance();
+tic
+while(toc<10)
+% error = 6*vals.one + 1*vals.two + 0*vals.three - 0*vals.four - 1*vals.five - 6*vals.six;
+error = getError(nb, minReflectance, maxReflectance)
+end
+
+%%
+mOffScale = 1.2;
+m1Duty = 9;
+m2Duty = 9;
+nb.setMotor(1, 15);
+nb.setMotor(2, 15);
+pause(.03);
+nb.setMotor(1, m2Duty);
+nb.setMotor(2, m2Duty);
+pause(2);
+nb.setMotor(1, 0);
+nb.setMotor(2, 0);
+
+%% X. DISCONNECT
+%  Clears the workspace and command window, then
+%  disconnects from the nanobot, freeing up the serial port.
+
+clc
+delete(nb);
+clear('nb');
+clear all
+%%
+function [calVals, error] = getError(nb, minReflectance, maxReflectance)
+vals = nb.reflectanceRead();
+    calibratedVals =   struct('one', 0, 'two', 0, 'three', 0, 'four', 0, 'five', 0, 'six', 0);
+    calibratedVals.one = 1000 * (vals.one - minReflectance(1)) / (maxReflectance(1) - minReflectance(1))
+    calibratedVals.two = 1000 * (vals.two - minReflectance(2)) / (maxReflectance(2) - minReflectance(2))
+    calibratedVals.three = 1000 * (vals.three - minReflectance(3)) / (maxReflectance(3) - minReflectance(3))
+    calibratedVals.four = 1000 * (vals.four - minReflectance(4)) / (maxReflectance(4) - minReflectance(4))
+    calibratedVals.five = 1000 * (vals.five - minReflectance(5)) / (maxReflectance(5) - minReflectance(5))
+    calibratedVals.six = 1000 * (vals.six - minReflectance(6)) / (maxReflectance(6) - minReflectance(6))
+    calVals = calibratedVals;
+    error = 3*calibratedVals.one + 2*calibratedVals.two + 1*calibratedVals.three - 1*calibratedVals.four - 2*calibratedVals.five - 3*calibratedVals.six
+end
