@@ -1,31 +1,38 @@
 %% init the arduino
 clear all 
 clc
-nb = nanobot('/dev/cu.usbmodem14101', 115200, 'wifi');
+nb = nanobot('/dev/cu.usbmodem101', 115200, 'serial');
 
 %% Motor testing
 
 % move forward
-r.setMotor(1,10.3) %right motor on Arduino side
-r.setMotor(2,10) %left motor on Arduino side
+nb.setMotor(1,10.3) %right motor on Arduino side
+nb.setMotor(2,10) %left motor on Arduino side
 pause(1)
-r.setMotor(1,0)
-r.setMotor(2,0)
+nb.setMotor(1,0)
+nb.setMotor(2,0)
 pause(0.5)
 % move backward
-r.setMotor(1,-10)
-r.setMotor(2,-10)
+nb.setMotor(1,-10)
+nb.setMotor(2,-10)
 pause(1)
-r.setMotor(1,0)
-r.setMotor(2,0)
+nb.setMotor(1,0)
+nb.setMotor(2,0)
 pause(0.5)
 % turn around
-r.setMotor(1,10)
-r.setMotor(2,-10)
+nb.setMotor(1,10)
+nb.setMotor(2,-10)
 pause(1.25)
-r.setMotor(1,0)
-r.setMotor(2,0)
-
+nb.setMotor(1,0)
+nb.setMotor(2,0)
+%% checking the len of the wire. 
+tic 
+while (toc < 3)
+    nb.setMotor(1, 10);
+    nb.setMotor(2, 10);
+end
+nb.setMotor(1,0)
+nb.setMotor(2,0)
 %% Wall following
 nb.initUltrasonic2('D4','D5')
 nb.initReflectance();
@@ -74,9 +81,9 @@ end
 %  Using readings from reflectance array to change direction of your DC motor
 %  based on the the amount of error.
 
-motor1BaseSpeed = 9;
-motor2BaseSpeed = 9; % set to minimum duty cycle
-maxDuty = 12; %maximum Duty cycle
+motor1BaseSpeed = 10;
+motor2BaseSpeed = 10; % set to minimum duty cycle
+maxDuty = 10; %maximum Duty cycle
 nb.initReflectance();
 
 tic
@@ -86,25 +93,25 @@ tic
 % pause(0.03);
 
 %PID Params
-kp=0.01;
-ki=0; %leave at zero for testing
-kd=0; %leave at zero for testing
+kp=3.9;
+ki=2.80; %leave at zero for testing
+kd=-2.50; %leave at zero for testing
 prevError = 0;
 prevTime = 0;
 intgral = 0;
 
-while(toc < 5)
+while(toc < 3.5)
    dt = toc - prevTime;
    prevTime = toc;
 
     %TO-DO: Refactor PID code for real code
     val = nb.reflectanceRead()
-    error = -3*val.one -2*val.two -val.three + val.four+2*val.five+ 3*val.six;
-    stopCheck = -3*val.one + 3*val.six; 
+    error = (-3*val.one) + (-2*val.two) + (-1* val.three) + val.four+ (2*val.five)+ (3*val.six);
+    %stopCheck = -3*val.one + 3*val.six; 
 
     intgral = intgral + (error * dt);
     derivative = (error - prevError) / dt;
-    control = abs(kp*error + ki*intgral + kd*derivative);
+    control = (kp*error) + (ki*intgral) + (kd*derivative);
     
     %Reverse on all white
     % if(val.one<100 && val.two<100 && val.three<100 && val.four<100 && val.five<100 && val.six<100 ) 
@@ -115,24 +122,24 @@ while(toc < 5)
     %     nb.setMotor(2,0)
     %     pause(0.5)
     % else
-        RightMotorDuty = 2+ motor1BaseSpeed + control;
-        LeftMotorDuty = 2+ motor1BaseSpeed - control;
+        RightMotorDuty =  motor1BaseSpeed + control;
+        LeftMotorDuty = motor1BaseSpeed - control;
         fprintf('error: %.2d, control: %.2f, rightMotor: %.2f, leftMotor: %.2f\n',error,control, RightMotorDuty,LeftMotorDuty);
 
-        if RightMotorDuty > maxDuty
-            RightMotorDuty = maxDuty;
-        elseif RightMotorDuty < motor2BaseSpeed
-            RightMotorDuty = motor2BaseSpeed;
-        end
+         if RightMotorDuty > maxDuty
+             RightMotorDuty = maxDuty;
+         elseif RightMotorDuty < motor2BaseSpeed
+             RightMotorDuty = motor2BaseSpeed;
+         end
+         
+         if LeftMotorDuty > maxDuty
+             LeftMotorDuty = maxDuty;
+         elseif LeftMotorDuty < motor1BaseSpeed
+             LeftMotorDuty = motor1BaseSpeed;
+         end
 
-        if LeftMotorDuty > maxDuty
-            LeftMotorDuty = maxDuty;
-        elseif LeftMotorDuty < motor1BaseSpeed
-            LeftMotorDuty = motor1BaseSpeed;
-        end
-
-        nb.setMotor(2,RightMotorDuty*1.03); % set right motor
-        nb.setMotor(1,LeftMotorDuty); %set left motor
+         nb.setMotor(2,RightMotorDuty*.98); % set right motor
+         nb.setMotor(1,LeftMotorDuty); %set left motor
     % end
    prevError = error;
 end
