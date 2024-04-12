@@ -1,0 +1,48 @@
+%% Wall Following (Hacky Solution)
+
+%Initialization
+clc
+clear all
+nb = nanobot('COM9', 115200, 'wifi');
+
+%Go Straight and Stop When Front Ultrasonic Reads a Certain Value, Then Turn 90 degrees Right
+tic
+while(toc < 10)
+nb.initUltrasonic1('D2', 'D3');
+nb.initUltrasonic2('D4','D5');
+FrontUS = nb.ultrasonicRead1();
+fprintf('FrontUS = %i\n', FrontUS)
+SideUS = nb.ultrasonicRead2();
+fprintf('SideUS = %i\n', SideUS)
+
+nb.setMotor(1,9)
+nb.setMotor(2,9.2)
+%Turn 90 degrees
+if (FrontUS <= 600)
+    nb.setMotor(1,0)
+    nb.setMotor(2,0)
+    pause(.5)
+    nb.setMotor(1,-10)
+    nb.setMotor(2,10)
+    pause(.633)
+    nb.setMotor(1,0)
+    nb.setMotor(2,0)
+    break
+end
+end
+nb.setMotor(1,0)
+nb.setMotor(2,0)
+pause(.5)
+% Try to move around the wall (Not working yet)
+if (SideUS >= 400)
+    nb.setMotor(1, 9.2)
+else (SideUS < 400)
+    nb.setMotor(2,9.5)
+end
+%% EMERGENCY MOTOR SHUT OFF
+% If this doesn't work, turn off the power switch on your motor carrier
+% board.
+
+% Clear motors
+nb.setMotor(1, 0);
+nb.setMotor(2, 0);
