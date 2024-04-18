@@ -443,6 +443,7 @@ while(state == 1)
     yesNo = string(prediction);
     switch words
         case "0"
+            % this is the 1 value. 
             fprintf("line following\n");
             % TUNING:
     % Start small (ESPECIALLY with the reflectance values, error can range from zero to several thousand!)
@@ -575,123 +576,19 @@ while(state == 1)
     nb.setMotor(1, 0);
     nb.setMotor(2, 0);
         case "1"
+            % this is 0
             fprintf("stopping\n");
             stop(nb);
         case "2"
-            fprintf("forward\n");
-                % Start small (ESPECIALLY with the reflectance values, error can range from zero to several thousand!)
-    % Tip: when tuning kd, it must be the opposite sign of kp to damp
-    kp = 0.001;
-    ki = 0.0000;
-    kd = -0.00;
-
-    % Basic initialization
-    vals = 0;
-    prevError = 0;
-    prevTime = 0;
-    integral = 0;
-    derivative = 0;
-    whiteThresh = 50;
-    blkThresh = 100;
-    turnOffset = 0
-
-    % Determine a threshold to detect when white is present on all sensors
-    % whiteThresh = '?'; % Max value detected for all white
-
-    % The base duty cycle "speed" you wish to travel down the line with
-    % (recommended values are 9 or 10)
-    % baseSpeed = 11;
-    baseSpeed = 9;
-    motor1BaseSpeed = baseSpeed;
-    motor2BaseSpeed = baseSpeed;
-    maxDuty = 17;
-
-    tic
-    nb.setMotor(1, 9.1);
-    nb.setMotor(2, 9.3);
-    pause(0.03);
-    black_tape_marker = 0;
-    while (toc < 200)  % Adjust me if you want to stop your line following earlier, or let it run longer.
-    
-        % TIME STEP
-        dt = toc - prevTime;
-        prevTime = toc;
-    
-    [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);
-
-    % Calculate P, I, and D terms
-    integral = integral + (error*dt);
-
-    derivative = (error - prevError)/dt;
-
-    % Set PID
-    control = kp*error + ki*integral + kd*derivative + turnOffset;
-
-    % STATE CHECKING - stops robot if all sensors read white (lost tracking):
-    if (calibratedVals.one < whiteThresh && ...
-            calibratedVals.two < whiteThresh && ...
-            calibratedVals.three < whiteThresh && ...
-            calibratedVals.four < whiteThresh && ...
-            calibratedVals.five < whiteThresh && ...
-            calibratedVals.six < whiteThresh)
-        % Stop the motors and exit the while loop
-        nb.setMotor(1, 0);
-        nb.setMotor(2, 0);
-        pause(.1)
-        if prevError > 0
-            nb.setMotor(2, -10);
-        elseif prevError < 0
-            nb.setMotor(1, -10.2);
-        end
-        pause(.2);
-    elseif (calibratedVals.one > blkThresh && ...
-            calibratedVals.two > blkThresh && ...
-            calibratedVals.three > blkThresh && ...
-            calibratedVals.four > blkThresh && ...
-            calibratedVals.five > blkThresh && ...
-            calibratedVals.six > blkThresh)
-        % Stop the motors and exit the while loop
-        nb.setMotor(1, 0);
-        nb.setMotor(2, 0);
-        break
-   end
-        else
-        % LINE DETECTED:
-        
-        % Remember, we want to travel around a fixed speed down the line,
-        % and the control should make minor adjustments that allow the
-        % robot to stay centered on the line as it moves.
-        
-        m1Duty = motor1BaseSpeed+control+(turnOffset>0);
-        m2Duty = motor2BaseSpeed-control+(turnOffset<0);
-  
-        if m1Duty > maxDuty
-            m1Duty = maxDuty;
-        elseif m1Duty < 6
-            m1Duty = 6;
-        end
-
-        if m2Duty > maxDuty
-            m2Duty = maxDuty;
-        elseif m2Duty < 6
-            m2Duty = 6;
-        end
-            % If you're doing something with encoders to derive control, you
-            % may want to make sure the duty cycles of the motors don't exceed
-            % the maximum speed so that your counts stay accurate.
-
-            nb.setMotor(1, m1Duty);
-            nb.setMotor(2, m2Duty);
-            turnOffset = 0;
-            prevError = error;
-    end
-
-    nb.setMotor(1, 0);
-    nb.setMotor(2, 0);
+            %this is _
+            fprintf("color sensing");
+            colorSEN(nb);
         case "3"
+            %t this is \
             fprintf("right 45\n");
             turn(nb, 45);
         case "4"
+            % this is /
             fprintf("left 45\n");
             turn(nb, -45)
         otherwise
@@ -711,6 +608,62 @@ clc
 delete(nb);
 clear('nb');
 clear all
+%% Color function
+function colorSEN(nb)
+% Testing func. 
+MotorSpeed = 10;
+offset = 0.95;
+%white tarmack will be R 89, G 78. B 107. 
+
+% red will be R 156-170 G 61-59 B 69-72
+
+% blue will be R 65 G 113-112 B 121,
+
+% black will be R 92 G 92 B 120, 
+deg = 0;
+state = 1 ;
+colorDet = 0; 
+val = 1;
+while (state == 1)
+        %this needs to be called everytime in execution. 
+        [R,G, B] = ColorSenseRGB(nb);
+        % %checking if red first tand then turns goes forward
+        if ((R > 150) & (G >= 50) & (B >= 50))
+            turn(nb, 60);
+            forward(nb, 1.2)
+        %if detected red again turns around. 
+            if ((R > 150) & (G >= 50) & (B >= 50))
+             turn(nb, -185);
+            forward(nb, .89);
+            turn(nb, -30);
+         end 
+        end
+    %checks blue if blue turns and goes forward
+    if ((R >= 50) & (R < 90) & (G >= 90) & (B >= 90))
+        turn(nb, -60);
+        forward(nb, 1.2);
+        %if the blue is detected turns and goes forward. 
+            if ((R >= 50) & (R < 90) & (G >= 90) & (B >= 90))
+                turn(nb, 185);
+                    forward(nb, .88);
+                    colorDet = 1;
+                    turn(nb, 30);
+                end
+            end 
+    
+        if (colorDet  == 1)
+            fprintf("Red :%d Blue:%d Green:%G \n", R, G, B);
+            state =0;
+        else
+            clc;
+            fprintf("Red :%d Blue:%d Green:%G \n", R, G, B);
+            fprintf("line-following-chicken\n");
+            %forward(nb);
+        end
+    end
+    stop(nb);
+
+end
 
 %% Wall Following Function
 function wallfollow(nb1)
