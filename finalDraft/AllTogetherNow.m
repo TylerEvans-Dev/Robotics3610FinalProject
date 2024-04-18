@@ -35,8 +35,8 @@
 
 clc
 clear all
-nb = nanobot('/dev/cu.usbmodem1301', 115200, 'serial');%nanobot('COM9', 115200, 'wifi');
-% r1 = nanobot('/dev/cu.usbmodem143201', 115200, 'serial'); %connect to MKR
+nb = nanobot('/dev/cu.usbmodem1301', 115200, 'wifi');%nanobot('COM9', 115200, 'wifi');
+r1 = nanobot('/dev/cu.usbmodem141201', 115200, 'serial'); %connect to MKR
 % r1.ledWrite(0);
 %init ultrasonic sensors
 nb.initUltrasonic1('D2','D3')
@@ -405,7 +405,7 @@ while(state == 1)
         % collect gesture
         % collect gesture
         clear r1;
-        r1 = nanobot('/dev/cu.usbmodem1401', 115200, 'serial'); %connect to MKR
+        r1 = nanobot('/dev/cu.usbmodem141201', 115200, 'serial'); %connect to MKR
         r1.ledWrite(0);
         pause(.5);
         countdown("Beginning in", 3);
@@ -441,18 +441,253 @@ while(state == 1)
     % title("Classification:", string(prediction)); %title plot with the label
     words = string(prediction);
     yesNo = string(prediction);
-while 1
     switch words
         case "0"
             fprintf("line following\n");
-            %here is the numo numo. 
+            % TUNING:
+    % Start small (ESPECIALLY with the reflectance values, error can range from zero to several thousand!)
+    % Tip: when tuning kd, it must be the opposite sign of kp to damp
+    kp = 0.001;
+    ki = 0.0000;
+    kd = -0.00;
+
+    % Basic initialization
+    vals = 0;
+    prevError = 0;
+    prevTime = 0;
+    integral = 0;
+    derivative = 0;
+    whiteThresh = 50;
+    blkThresh = 100;
+    turnOffset = 0
+
+    % Determine a threshold to detect when white is present on all sensors
+    % whiteThresh = '?'; % Max value detected for all white
+
+    % The base duty cycle "speed" you wish to travel down the line with
+    % (recommended values are 9 or 10)
+    % baseSpeed = 11;
+    baseSpeed = 9;
+    motor1BaseSpeed = baseSpeed;
+    motor2BaseSpeed = baseSpeed;
+    maxDuty = 17;
+
+    tic
+    nb.setMotor(1, 9.1);
+    nb.setMotor(2, 9.3);
+    pause(0.03);
+    black_tape_marker = 0;
+    while (toc < 200)  % Adjust me if you want to stop your line following earlier, or let it run longer.
+    
+        % TIME STEP
+        dt = toc - prevTime;
+        prevTime = toc;
+    
+    [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);
+
+    % Calculate P, I, and D terms
+    integral = integral + (error*dt);
+
+    derivative = (error - prevError)/dt;
+
+    % Set PID
+    control = kp*error + ki*integral + kd*derivative + turnOffset;
+
+    % STATE CHECKING - stops robot if all sensors read white (lost tracking):
+    if (calibratedVals.one < whiteThresh && ...
+            calibratedVals.two < whiteThresh && ...
+            calibratedVals.three < whiteThresh && ...
+            calibratedVals.four < whiteThresh && ...
+            calibratedVals.five < whiteThresh && ...
+            calibratedVals.six < whiteThresh)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        pause(.1)
+        if prevError > 0
+            nb.setMotor(2, -10);
+        elseif prevError < 0
+            nb.setMotor(1, -10.2);
+        end
+        pause(.2);
+    elseif (calibratedVals.one > blkThresh && ...
+            calibratedVals.two > blkThresh && ...
+            calibratedVals.three > blkThresh && ...
+            calibratedVals.four > blkThresh && ...
+            calibratedVals.five > blkThresh && ...
+            calibratedVals.six > blkThresh && black_tape_marker)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        break
+    elseif (calibratedVals.one > blkThresh && ...
+            calibratedVals.two > blkThresh && ...
+            calibratedVals.three > blkThresh && ...
+            calibratedVals.four > blkThresh && ...
+            calibratedVals.five > blkThresh && ...
+            calibratedVals.six > blkThresh && ~black_tape_marker)
+        % Stop the motors and exit the while loop
+        black_tape_marker = 1;
+        nb.setMotor(1, 0);
+        nb.setMotor(2,0);
+        pause(.375)
+        nb.setMotor(1, -10)
+        nb.setMotor(2,10.2)
+        pause(1.25)
+        nb.setMotor(1,0)
+        nb.setMotor(2,0)
+        pause(0.3)
+        nb.setMotor(1, 10)
+        nb.setMotor(2,10.2)
+        else
+        % LINE DETECTED:
+        
+        % Remember, we want to travel around a fixed speed down the line,
+        % and the control should make minor adjustments that allow the
+        % robot to stay centered on the line as it moves.
+        
+        m1Duty = motor1BaseSpeed+control+(turnOffset>0);
+        m2Duty = motor2BaseSpeed-control+(turnOffset<0);
+       
+        if m1Duty > maxDuty
+            m1Duty = maxDuty;
+        elseif m1Duty < 6
+            m1Duty = 6;
+        end
+
+        if m2Duty > maxDuty
+            m2Duty = maxDuty;
+        elseif m2Duty < 6
+            m2Duty = 6;
+        end
+            % If you're doing something with encoders to derive control, you
+            % may want to make sure the duty cycles of the motors don't exceed
+            % the maximum speed so that your counts stay accurate.
+
+            nb.setMotor(1, m1Duty);
+            nb.setMotor(2, m2Duty);
+            turnOffset = 0;
+            prevError = error;
+        end
+
+    
+    end
+    nb.setMotor(1, 0);
+    nb.setMotor(2, 0);
         case "1"
             fprintf("stopping\n");
-            stop();
+            stop(nb);
         case "2"
             fprintf("forward\n");
-            foward(nb, 0.25);
-            stop();
+                % Start small (ESPECIALLY with the reflectance values, error can range from zero to several thousand!)
+    % Tip: when tuning kd, it must be the opposite sign of kp to damp
+    kp = 0.001;
+    ki = 0.0000;
+    kd = -0.00;
+
+    % Basic initialization
+    vals = 0;
+    prevError = 0;
+    prevTime = 0;
+    integral = 0;
+    derivative = 0;
+    whiteThresh = 50;
+    blkThresh = 100;
+    turnOffset = 0
+
+    % Determine a threshold to detect when white is present on all sensors
+    % whiteThresh = '?'; % Max value detected for all white
+
+    % The base duty cycle "speed" you wish to travel down the line with
+    % (recommended values are 9 or 10)
+    % baseSpeed = 11;
+    baseSpeed = 9;
+    motor1BaseSpeed = baseSpeed;
+    motor2BaseSpeed = baseSpeed;
+    maxDuty = 17;
+
+    tic
+    nb.setMotor(1, 9.1);
+    nb.setMotor(2, 9.3);
+    pause(0.03);
+    black_tape_marker = 0;
+    while (toc < 200)  % Adjust me if you want to stop your line following earlier, or let it run longer.
+    
+        % TIME STEP
+        dt = toc - prevTime;
+        prevTime = toc;
+    
+    [calibratedVals, error] = getError(nb, minReflectance, maxReflectance);
+
+    % Calculate P, I, and D terms
+    integral = integral + (error*dt);
+
+    derivative = (error - prevError)/dt;
+
+    % Set PID
+    control = kp*error + ki*integral + kd*derivative + turnOffset;
+
+    % STATE CHECKING - stops robot if all sensors read white (lost tracking):
+    if (calibratedVals.one < whiteThresh && ...
+            calibratedVals.two < whiteThresh && ...
+            calibratedVals.three < whiteThresh && ...
+            calibratedVals.four < whiteThresh && ...
+            calibratedVals.five < whiteThresh && ...
+            calibratedVals.six < whiteThresh)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        pause(.1)
+        if prevError > 0
+            nb.setMotor(2, -10);
+        elseif prevError < 0
+            nb.setMotor(1, -10.2);
+        end
+        pause(.2);
+    elseif (calibratedVals.one > blkThresh && ...
+            calibratedVals.two > blkThresh && ...
+            calibratedVals.three > blkThresh && ...
+            calibratedVals.four > blkThresh && ...
+            calibratedVals.five > blkThresh && ...
+            calibratedVals.six > blkThresh)
+        % Stop the motors and exit the while loop
+        nb.setMotor(1, 0);
+        nb.setMotor(2, 0);
+        break
+   end
+        else
+        % LINE DETECTED:
+        
+        % Remember, we want to travel around a fixed speed down the line,
+        % and the control should make minor adjustments that allow the
+        % robot to stay centered on the line as it moves.
+        
+        m1Duty = motor1BaseSpeed+control+(turnOffset>0);
+        m2Duty = motor2BaseSpeed-control+(turnOffset<0);
+  
+        if m1Duty > maxDuty
+            m1Duty = maxDuty;
+        elseif m1Duty < 6
+            m1Duty = 6;
+        end
+
+        if m2Duty > maxDuty
+            m2Duty = maxDuty;
+        elseif m2Duty < 6
+            m2Duty = 6;
+        end
+            % If you're doing something with encoders to derive control, you
+            % may want to make sure the duty cycles of the motors don't exceed
+            % the maximum speed so that your counts stay accurate.
+
+            nb.setMotor(1, m1Duty);
+            nb.setMotor(2, m2Duty);
+            turnOffset = 0;
+            prevError = error;
+    end
+
+    nb.setMotor(1, 0);
+    nb.setMotor(2, 0);
         case "3"
             fprintf("right 45\n");
             turn(nb, 45);
@@ -466,7 +701,6 @@ while 1
         state = 0;
         end
     end   
-end
 
 
 %% X. DISCONNECT
@@ -638,6 +872,3 @@ function forward(nb1, tim)
     end
     stop(nb1);
 end
-
-
-
