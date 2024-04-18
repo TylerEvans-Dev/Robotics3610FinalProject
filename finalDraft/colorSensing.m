@@ -4,7 +4,7 @@ clc;
 clear all;
 %init the colour sensor 
 
-nb = nanobot('/dev/cu.usbmodem1201', 115200, 'serial'); %connect to MKR
+nb = nanobot('/dev/cu.usbmodem1201', 115200, 'wifi'); %connect to MKR
 nb.ledWrite(0);
 nb.initColor();
 
@@ -21,23 +21,32 @@ offset = 0.95;
 deg = 0;
 state = 1 ;
 colorDet = 0; 
+val = 1;
 while (state == 1)
     %this needs to be called everytime in execution. 
     [R,G, B] = ColorSenseRGB(nb);
-    % %checking if blue
+    % %checking if red first tand then turns goes forward
     if ((R > 150) & (G >= 50) & (B >= 50))
-        turn(nb, 55);
+        turn(nb, 60);
         forward(nb, 1.2)
-        turn(nb, -140);
-        forward(nb, .9);
-        colorDet  = 1; 
+        %if detected red again turns around. 
+         if ((R > 150) & (G >= 50) & (B >= 50))
+             turn(nb, -185);
+            forward(nb, .89);
+            turn(nb, -30);
+         end 
     end
+    %checks blue if blue turns and goes forward
     if ((R >= 50) & (R < 90) & (G >= 90) & (B >= 90))
-        turn(nb, -55);
+        turn(nb, -60);
         forward(nb, 1.2);
-        turn(nb, 145);
-        forward(nb, .89);
-        colorDet = 1; 
+        %if the blue is detected turns and goes forward. 
+        if ((R >= 50) & (R < 90) & (G >= 90) & (B >= 90))
+            turn(nb, 185);
+            forward(nb, .88);
+            colorDet = 1;
+            turn(nb, 30);
+        end
     end 
     
      if (colorDet  == 1)
@@ -53,6 +62,26 @@ end
 stop(nb);
 %% STOP
 stop(nb)
+%% turn angle
+turn(nb, 360);
+%% Encoder read TURNING EFFECT CHANGING PART. 
+% using encoders insetead of time because time is flux. thing for turning. 
+  motor1Value = 0;
+    motor2Value = 0;
+    capVal1 = 0;
+    capVal2 = 0;
+while(1)
+    fprintf("\n");
+    motor1Value = nb.encoderRead(1);
+    motor2Value = nb.encoderRead(2);
+    sprintf("motor 1");
+    sprintf('%d',motor1Value);
+    sprintf('\n');
+    sprintf("motor 2");
+    sprintf('%d',motor2Value);
+    sprinf( \n);
+    sprintf(\n);
+end
 %% Color sensing helper function 
 %functions are always on the bottom. 
 %this was pulled from nanobot_demo.m
