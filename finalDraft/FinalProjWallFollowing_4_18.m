@@ -57,12 +57,43 @@ fprintf('Side val = %i\n', sideVal);
 
 frontValThresh = 750;
 sideValThresh = 900;
-firstRightTurn = true;
+firstTurn = true;
 tic
 turn_count = 0;
 while(toc<30)
-    pause(0.5);
+        if(firstTurn)
+            pause(0.5);
+            fprintf("Turning right and moving\n");
+            r.setMotor(1, 0);
+            r.setMotor(2, 12);
+            pause(0.5);
+            r.setMotor(1,0); 
+            r.setMotor(2,0);
+            r.setMotor(1,10.5) ;
+            r.setMotor(2,9);
+            pause(0.5); 
+            r.setMotor(1,0); 
+            r.setMotor(2,0);
+            firstTurn = false;
+            fprintf("first turn complete\n");
+        end
     sideVal = r.ultrasonicRead2();
+     if(firstTurn)
+        fprintf("Turning right and moving\n");
+        r.setMotor(1, 0);
+        r.setMotor(2, 12);
+        pause(0.5);
+        r.setMotor(1,0); 
+        r.setMotor(2,0);
+        r.setMotor(1,10.5) ;
+        r.setMotor(2,9);
+        pause(0.5); 
+        r.setMotor(1,0); 
+        r.setMotor(2,0);
+        firstTurn = false;
+        fprintf("first turn complete\n");
+     end
+
     if(sideVal > sideValThresh && turn_count < 3)
         %slight left turn and pause
             fprintf("side val = %i Turning left and stop\n",sideVal);
