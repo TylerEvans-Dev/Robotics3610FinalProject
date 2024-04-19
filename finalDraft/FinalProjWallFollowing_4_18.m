@@ -20,22 +20,25 @@ fprintf('Side val = %i\n', sideVal);
     pause(0.5);
     r.setMotor(1,0); 
     r.setMotor(2,0);
-    r.setMotor(1,10.5) ;
-    r.setMotor(2,9);
-    pause(1); 
+    pause(2);
     r.setMotor(1,0); 
     r.setMotor(2,0);
-
+    pause(0.3);
+    r.setMotor(1,9.5) ;
+    r.setMotor(2,9);
+    pause(2); 
+    r.setMotor(1,0); 
+    r.setMotor(2,0);
 %% move forward for short time
     fprintf("Move forward\n");
-    r.setMotor(1,10.5) ;
+    r.setMotor(1,9.5) ;
     r.setMotor(2,9);
     pause(0.5);
     r.setMotor(1, 0);
     r.setMotor(2, 0);
     pause(1);
 %% turn left and move forward
-    fprintf("Turning right and moving\n");
+    fprintf("Turning left and moving\n");
     r.setMotor(1, 12);
     r.setMotor(2, 0);
     pause(0.5);
@@ -53,34 +56,35 @@ fprintf('Side val = %i\n', sideVal);
 % it's far enough from the wall and turn's left if so, otherwise it goes straight
 
 frontValThresh = 750;
-sideValThresh = 500;
+sideValThresh = 900;
 firstRightTurn = true;
 tic
-
+turn_count = 0;
 while(toc<30)
-   if(frontVal < frontValThresh)
-       %start process
-       if(firstRightTurn)
-           fprintf("Begin turning right\n");
-           pause(2.5);
-           %begins right turn process
-            fprintf("Turning right and moving\n");
+    pause(0.5);
+    sideVal = r.ultrasonicRead2();
+    if(sideVal > sideValThresh && turn_count < 3)
+        %slight left turn and pause
+            fprintf("side val = %i Turning left and stop\n",sideVal);
+            r.setMotor(1, 12);
+            r.setMotor(2, 0);
+            pause(0.2);
             r.setMotor(1, 0);
-            r.setMotor(2, 12);
-            pause(0.5);
-            r.setMotor(1,0); 
-            r.setMotor(2,0);
-            r.setMotor(1,10.5) ;
+            r.setMotor(2, 0);
+            % turn_count = turn_count + 1;
+    else
+        %move forward very slow
+            fprintf("Move forward\n");
+            r.setMotor(1,9.5) ;
             r.setMotor(2,9);
-            pause(1); 
-            r.setMotor(1,0); 
-            r.setMotor(2,0);
-            firstRightTurn = false;
-       end
-       if(sideVal > sideValThresh)
-           %slight left turn and move forward short
-       else
-           %move forward
-       end
-   end
+            pause(0.2)
+            turn_count = 0;
+    end
 end
+
+r.setMotor(1, 0);
+r.setMotor(2, 0);
+%%
+
+r.setMotor(1, 0);
+r.setMotor(2, 0);
